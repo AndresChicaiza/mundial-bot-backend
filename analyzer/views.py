@@ -13,7 +13,7 @@ SYSTEM_PROMPT = (
     "Busca en internet datos reales y responde SOLO con JSON válido sin markdown. "
     "IMPORTANTE: Todas las probabilidades y porcentajes deben ser números enteros del 0 al 100 (ej: 45, no 0.45). "
     "El JSON debe tener: partido (equipo_local, equipo_visitante, fecha, estadio, fase), "
-    "probabilidades_resultado (victoria_local, empate, victoria_visitante, descripcion), "
+    "probabilidades_resultado (victoria_local, empate, victoria_visitante, marcadores_exactos con marcador/probabilidad, descripcion), "
     "goles (total_esperado, local_esperado, visitante_esperado, ambos_anotan_prob, mas_de_2_5_prob, "
     "goleadores_probables con nombre/equipo/probabilidad/razon), "
     "tarjetas (amarillas_esperadas, local_amarillas, visitante_amarillas, rojas_prob, "
