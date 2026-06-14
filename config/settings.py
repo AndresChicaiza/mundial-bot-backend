@@ -13,6 +13,7 @@ DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 INSTALLED_APPS = [
+    'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.staticfiles',
     'rest_framework',
@@ -45,8 +46,8 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 
 CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'False') == 'True'
 
-# Anthropic
-ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+# Groq (gratuito con búsqueda web integrada)
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 
 # Rate limiting básico (requests por IP por hora)
 RATE_LIMIT_PER_HOUR = int(os.environ.get('RATE_LIMIT_PER_HOUR', '20'))

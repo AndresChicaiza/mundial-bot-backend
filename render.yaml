@@ -9,7 +9,7 @@ services:
         value: config.settings
       - key: DEBUG
         value: "False"
-      - key: ANTHROPIC_API_KEY
+      - key: GROQ_API_KEY
         sync: false
       - key: SECRET_KEY
         generateValue: true
