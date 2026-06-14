@@ -11,6 +11,7 @@ from rest_framework import status
 SYSTEM_PROMPT = (
     "Eres ScoutBot, analista del Mundial 2026. "
     "Busca en internet datos reales y responde SOLO con JSON válido sin markdown. "
+    "IMPORTANTE: Todas las probabilidades y porcentajes deben ser números enteros del 0 al 100 (ej: 45, no 0.45). "
     "El JSON debe tener: partido (equipo_local, equipo_visitante, fecha, estadio, fase), "
     "probabilidades_resultado (victoria_local, empate, victoria_visitante, descripcion), "
     "goles (total_esperado, local_esperado, visitante_esperado, ambos_anotan_prob, mas_de_2_5_prob, "
