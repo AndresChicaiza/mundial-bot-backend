@@ -283,7 +283,8 @@ class AnalyzeMatchView(APIView):
                     {'role': 'user', 'content': augmented_query},
                 ],
                 max_tokens=6000,
-                temperature=0.3,
+                temperature=0.0,
+                response_format={"type": "json_object"},
             )
 
             final_text = response.choices[0].message.content
