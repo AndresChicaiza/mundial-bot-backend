@@ -14,7 +14,7 @@ SYSTEM_PROMPT = (
     "Responde SOLO con JSON válido sin markdown.\n\n"
     "=== REGLAS GENERALES ===\n"
     "- Usa el contexto web proporcionado en la consulta como base principal del análisis.\n"
-    "- Si el contexto es insuficiente y no hay datos exactos, usa promedios históricos realistas del equipo usando tu conocimiento base, aclarando que son estimados.\n"
+    "- Si el contexto web es insuficiente para rellenar algún dato (como el estadio, árbitro o plantilla), USA tu conocimiento interno para proporcionar los datos más probables y realistas para el Mundial 2026. ¡No dejes campos en 'No disponible'!\n"
     "- El JSON debe ser parseable directamente, sin caracteres de control ni comillas sin escapar.\n"
     "- Los valores numéricos deben ser números, no strings.\n\n"
     "=== ANÁLISIS PONDERADO POR RANKING FIFA (obligatorio) ===\n"
@@ -32,27 +32,11 @@ SYSTEM_PROMPT = (
     "   a mayor brecha, mayor peso debe tener el ranking en la probabilidad final.\n"
     "7. Llena el campo 'contexto_ranking_fifa' del JSON con este análisis completo,\n"
     "   y usa esa conclusión para ajustar coherentemente 'probabilidades_resultado'.\n\n"
-    "=== VERIFICACIÓN OBLIGATORIA DE PLANTILLA (anti-alucinación, CRÍTICO) ===\n"
-    "1. SOLO puedes nombrar jugadores que aparezcan EXPLÍCITAMENTE en el contexto\n"
-    "   web proporcionado como parte de la convocatoria, alineación o plantilla\n"
-    "   ACTUAL para el Mundial 2026. NUNCA uses tu conocimiento general o memoria\n"
-    "   de qué jugadores 'suelen' representar a un país.\n"
-    "2. PROHIBIDO mencionar jugadores retirados de la selección, retirados del\n"
-    "   fútbol profesional, o que no figuren en el contexto de búsqueda como\n"
-    "   convocados a este Mundial 2026. Ejemplo de error grave: nombrar a un\n"
-    "   ícono histórico de un país (ej. un delantero ya retirado) solo porque es\n"
-    "   famoso — eso es una alucinación y está terminantemente prohibido.\n"
-    "3. Si el contexto web NO menciona jugadores específicos de un equipo con\n"
-    "   suficiente claridad, usa términos genéricos como 'delantero titular' o\n"
-    "   'principal referente ofensivo (no confirmado por fuente)' en lugar de\n"
-    "   inventar un nombre.\n"
-    "4. En el campo 'verificacion_plantilla', lista únicamente los jugadores que\n"
-    "   SÍ aparecieron respaldados por el contexto de búsqueda, y en 'nota'\n"
-    "   declara honestamente si la convocatoria pudo confirmarse o si hay\n"
-    "   incertidumbre.\n"
-    "5. Esta regla aplica a TODOS los campos del JSON: goleadores_probables,\n"
-    "   jugadores_en_riesgo, arquero_local/visitante, etc. Cero jugadores\n"
-    "   inventados o desactualizados en ningún campo.\n\n"
+    "=== VERIFICACIÓN DE PLANTILLA Y DATOS ===\n"
+    "1. Extrae todos los nombres de jugadores, estadio y árbitro que aparezcan en el contexto web.\n"
+    "2. Si el contexto NO menciona arqueros, goleadores o jugadores en riesgo específicos, USA tu conocimiento histórico para nombrar a los jugadores estrella titulares habituales de esa selección.\n"
+    "3. PROHIBIDO dejar campos como 'arquero_local', 'arquero_visitante', 'goleadores_probables' o 'estadio' como 'No disponible'. Si no lo sabes con certeza por el contexto web, deduce lógicamente quiénes son los jugadores clave actuales de esos países.\n"
+    "4. En 'verificacion_plantilla', lista los jugadores que encontraste en la web y en la 'nota' aclara que el resto fueron deducidos por historial reciente.\n"
     "=== ESQUEMA JSON DE RESPUESTA ===\n"
     "El JSON debe tener la siguiente estructura estricta:\n"
     "{\n"
@@ -196,19 +180,22 @@ def get_client_ip(request):
 
 
 def perform_web_search(query: str) -> str:
-    """Realiza una búsqueda web para inyectar contexto actualizado sobre el partido."""
+    """Realiza múltiples búsquedas web para inyectar contexto enriquecido."""
     try:
-        search_term = f"plantilla y ultimos partidos {query} mundial 2026"
+        queries = [
+            f"convocatoria plantilla y alineacion {query} mundial 2026",
+            f"noticias {query} estadio arbitro mundial 2026",
+            f"ultimos resultados y estadisticas {query}"
+        ]
+        context = "=== CONTEXTO WEB RECIENTE ===\n"
         with DDGS() as ddgs:
-            # Trae los 5 primeros resultados
-            results = list(ddgs.text(search_term, max_results=5))
-            
-            context = "=== CONTEXTO WEB RECIENTE ===\n"
-            for r in results:
-                context += f"- {r.get('title')}: {r.get('body')}\n"
-            return context
+            for q in queries:
+                # Traemos 3 resultados por cada búsqueda específica
+                results = list(ddgs.text(q, max_results=3))
+                for r in results:
+                    context += f"- {r.get('title')}: {r.get('body')}\n"
+        return context
     except Exception as e:
-        # Si falla la búsqueda, devolvemos un aviso para que el LLM lo sepa
         print(f"Error en duckduckgo_search: {e}")
         return "=== CONTEXTO WEB RECIENTE ===\nNo se pudo obtener información web en este momento."
 
