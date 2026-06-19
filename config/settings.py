@@ -49,5 +49,8 @@ CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'False') == 'T
 # Groq (gratuito con búsqueda web integrada)
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 
+# Tavily AI Search (búsqueda web en tiempo real)
+TAVILY_API_KEY = os.environ.get('TAVILY_API_KEY', '')
+
 # Rate limiting básico (requests por IP por hora)
 RATE_LIMIT_PER_HOUR = int(os.environ.get('RATE_LIMIT_PER_HOUR', '20'))

@@ -1,11 +1,10 @@
 import json
 import time
-import urllib.request
-import urllib.parse
-import xml.etree.ElementTree as ET
+import re
 from datetime import datetime
 from collections import defaultdict
 
+from tavily import TavilyClient
 from groq import Groq
 from django.conf import settings
 from rest_framework.views import APIView
@@ -184,34 +183,32 @@ def get_client_ip(request):
     return request.META.get('REMOTE_ADDR', '0.0.0.0')
 
 
-import re
-
 def perform_web_search(query: str) -> str:
-    """Busca en DuckDuckGo HTML puro para evitar rate limits y obtener resúmenes largos (snippets)."""
+    """Busca con Tavily AI Search para obtener contexto real y actualizado del partido."""
+    tavily_key = settings.TAVILY_API_KEY
+    if not tavily_key:
+        return "=== CONTEXTO WEB ===\nNo hay TAVILY_API_KEY configurada."
     try:
-        q = urllib.parse.quote(f"{query} fecha estadio mundial 2026")
-        url = f"https://html.duckduckgo.com/html/?q={q}"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'es-ES,es;q=0.5'
-        }
-        req = urllib.request.Request(url, headers=headers)
-        html = urllib.request.urlopen(req, timeout=8).read().decode('utf-8')
-        
-        # Extraer los snippets usando Regex básico para no requerir BeautifulSoup
-        snippets = re.findall(r'<a class="result__snippet[^>]*>(.*?)</a>', html, re.IGNORECASE | re.DOTALL)
-        
-        context = "=== CONTEXTO WEB RECIENTE (RESULTADOS DE BÚSQUEDA) ===\n"
-        for s in snippets[:6]:
-            # Limpiar tags HTML básicos
-            clean_s = re.sub(r'<[^>]+>', '', s).strip()
-            context += f"- {clean_s}\n"
-            
+        client = TavilyClient(api_key=tavily_key)
+        # Búsqueda 1: fecha, estadio, árbitro
+        r1 = client.search(
+            f"{query} fecha estadio arbitro mundial 2026",
+            max_results=4,
+            search_depth="advanced"
+        )
+        # Búsqueda 2: convocatoria y titulares
+        r2 = client.search(
+            f"{query} convocatoria alineacion titular jugadores mundial 2026",
+            max_results=4,
+            search_depth="advanced"
+        )
+        context = "=== CONTEXTO WEB EN TIEMPO REAL (TAVILY) ===\n"
+        for result in r1['results'] + r2['results']:
+            context += f"Fuente: {result['title']}\n{result['content'][:400]}\n---\n"
         return context
     except Exception as e:
-        print(f"Error en DDG HTML: {e}")
-        return "=== CONTEXTO WEB RECIENTE ===\nNo se pudo obtener información web detallada."
+        print(f"Error en Tavily: {e}")
+        return f"=== CONTEXTO WEB ===\nError al buscar: {str(e)}"
 
 
 class HealthCheckView(APIView):
