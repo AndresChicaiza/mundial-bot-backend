@@ -1,5 +1,6 @@
 import json
 import time
+from datetime import datetime
 from collections import defaultdict
 
 from duckduckgo_search import DDGS
@@ -180,18 +181,18 @@ def get_client_ip(request):
 
 
 def perform_web_search(query: str) -> str:
-    """Realiza múltiples búsquedas web para inyectar contexto enriquecido."""
+    """Realiza múltiples búsquedas de NOTICIAS para inyectar contexto enriquecido."""
     try:
         queries = [
-            f"convocatoria plantilla y alineacion {query} mundial 2026",
-            f"noticias {query} estadio arbitro mundial 2026",
-            f"ultimos resultados y estadisticas {query}"
+            f"convocatoria y alineacion {query} mundial 2026",
+            f"previa {query} estadio arbitro fecha mundial 2026",
+            f"ultimas noticias {query}"
         ]
-        context = "=== CONTEXTO WEB RECIENTE ===\n"
+        context = "=== CONTEXTO WEB RECIENTE (NOTICIAS EN VIVO) ===\n"
         with DDGS() as ddgs:
             for q in queries:
-                # Traemos 3 resultados por cada búsqueda específica
-                results = list(ddgs.text(q, max_results=3))
+                # Usamos ddgs.news en lugar de ddgs.text para obtener datos al día, no Wikipedia genérica
+                results = list(ddgs.news(q, max_results=3))
                 for r in results:
                     context += f"- {r.get('title')}: {r.get('body')}\n"
         return context
@@ -238,11 +239,18 @@ class AnalyzeMatchView(APIView):
             )
 
         try:
-            # Buscar en internet contexto fresco
+            # Buscar en internet contexto fresco (noticias)
             web_context = perform_web_search(query)
             
+            # Fecha actual para contexto del modelo
+            fecha_actual = datetime.now().strftime("%Y-%m-%d")
+            
             # Unir el contexto web a la petición del usuario
-            augmented_query = f"{web_context}\n\n=== PETICIÓN DEL USUARIO ===\n{query}"
+            augmented_query = (
+                f"La fecha de hoy es {fecha_actual}. "
+                f"Tenlo en cuenta para establecer las fechas de los partidos en el futuro o pasado cercano.\n\n"
+                f"{web_context}\n\n=== PETICIÓN DEL USUARIO ===\n{query}"
+            )
 
             client = Groq(api_key=api_key)
 
