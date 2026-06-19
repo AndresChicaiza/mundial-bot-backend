@@ -1,9 +1,11 @@
 import json
 import time
+import urllib.request
+import urllib.parse
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from collections import defaultdict
 
-from duckduckgo_search import DDGS
 from groq import Groq
 from django.conf import settings
 from rest_framework.views import APIView
@@ -34,10 +36,11 @@ SYSTEM_PROMPT = (
     "7. Llena el campo 'contexto_ranking_fifa' del JSON con este análisis completo,\n"
     "   y usa esa conclusión para ajustar coherentemente 'probabilidades_resultado'.\n\n"
     "=== VERIFICACIÓN DE PLANTILLA Y DATOS ===\n"
-    "1. Extrae todos los nombres de jugadores, estadio y árbitro que aparezcan en el contexto web.\n"
-    "2. Si el contexto NO menciona arqueros, goleadores o jugadores en riesgo específicos, USA tu conocimiento histórico para nombrar a los jugadores estrella titulares habituales de esa selección.\n"
-    "3. PROHIBIDO dejar campos como 'arquero_local', 'arquero_visitante', 'goleadores_probables' o 'estadio' como 'No disponible'. Si no lo sabes con certeza por el contexto web, deduce lógicamente quiénes son los jugadores clave actuales de esos países.\n"
-    "4. En 'verificacion_plantilla', lista los jugadores que encontraste en la web y en la 'nota' aclara que el resto fueron deducidos por historial reciente.\n"
+    "1. Extrae fechas, estadios y árbitros del contexto web (noticias recientes).\n"
+    "2. Si el contexto NO menciona arqueros, goleadores o jugadores en riesgo específicos, USA tu conocimiento MÁS RECIENTE de las plantillas (Eliminatorias 2024, Copa América). ¡NO uses conocimiento histórico de mundiales pasados!\n"
+    "3. PROHIBIDO dejar campos en 'No disponible'. Deduce lógicamente con la plantilla actual de ese país.\n"
+    "4. EJEMPLO CRÍTICO: En Colombia, Radamel Falcao está retirado de la selección y David Ospina es suplente/inactivo. El arquero titular actual es Camilo Vargas, y figuras como Luis Díaz o James Rodríguez están activos. Aplica este nivel de actualidad para TODOS los equipos.\n"
+    "5. En 'verificacion_plantilla', lista los jugadores que encontraste en la web y en la 'nota' aclara que el resto fueron deducidos por la plantilla actual 2024.\n"
     "=== ESQUEMA JSON DE RESPUESTA ===\n"
     "El JSON debe tener la siguiente estructura estricta:\n"
     "{\n"
@@ -181,24 +184,25 @@ def get_client_ip(request):
 
 
 def perform_web_search(query: str) -> str:
-    """Realiza múltiples búsquedas de NOTICIAS para inyectar contexto enriquecido."""
+    """Obtiene titulares y resúmenes reales usando Google News RSS (Evita el bloqueo 403 de Render)."""
     try:
-        queries = [
-            f"convocatoria y alineacion {query} mundial 2026",
-            f"previa {query} estadio arbitro fecha mundial 2026",
-            f"ultimas noticias {query}"
-        ]
+        q = urllib.parse.quote(f"{query} mundial 2026")
+        url = f'https://news.google.com/rss/search?q={q}&hl=es-419&gl=CO&ceid=CO:es-419'
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        html = urllib.request.urlopen(req, timeout=5).read()
+        root = ET.fromstring(html)
+        
         context = "=== CONTEXTO WEB RECIENTE (NOTICIAS EN VIVO) ===\n"
-        with DDGS() as ddgs:
-            for q in queries:
-                # Usamos ddgs.news en lugar de ddgs.text para obtener datos al día, no Wikipedia genérica
-                results = list(ddgs.news(q, max_results=3))
-                for r in results:
-                    context += f"- {r.get('title')}: {r.get('body')}\n"
+        for item in root.findall('.//item')[:6]:
+            title = item.find('title').text if item.find('title') is not None else ''
+            desc = item.find('description').text if item.find('description') is not None else ''
+            # Limpiamos tags HTML basicos del description si los hay
+            desc_clean = desc.replace('<b>', '').replace('</b>', '').replace('</a>', '').split('<a href')[0]
+            context += f"- Titular: {title}\n"
         return context
     except Exception as e:
-        print(f"Error en duckduckgo_search: {e}")
-        return "=== CONTEXTO WEB RECIENTE ===\nNo se pudo obtener información web en este momento."
+        print(f"Error en google news rss: {e}")
+        return "=== CONTEXTO WEB RECIENTE ===\nNo se pudo obtener información web (Bloqueo o timeout)."
 
 
 class HealthCheckView(APIView):
