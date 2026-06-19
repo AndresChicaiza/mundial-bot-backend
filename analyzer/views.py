@@ -43,6 +43,7 @@ SYSTEM_PROMPT = (
     "5. EJEMPLO CRÍTICO: En Colombia, Radamel Falcao está retirado de la selección y David Ospina es suplente/inactivo. El arquero titular actual es Camilo Vargas, y figuras como Luis Díaz o James Rodríguez están activos. Aplica este nivel de actualidad para TODOS los equipos.\n"
     "6. En 'verificacion_plantilla', lista los jugadores que encontraste en la web y en la 'nota' aclara que el resto fueron deducidos por la plantilla actual 2024.\n"
     "7. ÁRBITRO: Si no hay árbitro confirmado, asigna un árbitro internacional top (ej. Szymon Marciniak) y DEBES asignar estadísticas realistas mayores a 0 (ej. amarillas: 4.5, rojas: 0.2, penales: 0.3). Pon 'datos_disponibles': false en este caso.\n"
+    "8. PORCENTAJES: Todos los valores de probabilidad, conversión y 'confianza_analisis' DEBEN estar en una escala de 0 a 100 (ej: 85.5), NUNCA de 0 a 1 (ej: 0.85).\n"
     "=== ESQUEMA JSON DE RESPUESTA ===\n"
     "El JSON debe tener la siguiente estructura estricta:\n"
     "{\n"
