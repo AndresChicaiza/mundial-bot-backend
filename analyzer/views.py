@@ -37,10 +37,11 @@ SYSTEM_PROMPT = (
     "   y usa esa conclusión para ajustar coherentemente 'probabilidades_resultado'.\n\n"
     "=== VERIFICACIÓN DE PLANTILLA Y DATOS ===\n"
     "1. Extrae fechas, estadios y árbitros del contexto web (noticias recientes).\n"
-    "2. Si el contexto NO menciona arqueros, goleadores o jugadores en riesgo específicos, USA tu conocimiento MÁS RECIENTE de las plantillas (Eliminatorias 2024, Copa América). ¡NO uses conocimiento histórico de mundiales pasados!\n"
-    "3. PROHIBIDO dejar campos en 'No disponible'. Deduce lógicamente con la plantilla actual de ese país.\n"
-    "4. EJEMPLO CRÍTICO: En Colombia, Radamel Falcao está retirado de la selección y David Ospina es suplente/inactivo. El arquero titular actual es Camilo Vargas, y figuras como Luis Díaz o James Rodríguez están activos. Aplica este nivel de actualidad para TODOS los equipos.\n"
-    "5. En 'verificacion_plantilla', lista los jugadores que encontraste en la web y en la 'nota' aclara que el resto fueron deducidos por la plantilla actual 2024.\n"
+    "2. ¡CRÍTICO! Si el contexto NO menciona explícitamente la FECHA EXACTA (ej: 23 de junio), NO LA INVENTES (no digas 20 de junio ni otra fecha al azar). Pon 'Por confirmar' o devuelve el campo vacío.\n"
+    "3. Si el contexto NO menciona arqueros, goleadores o jugadores en riesgo específicos, USA tu conocimiento MÁS RECIENTE de las plantillas (Eliminatorias 2024, Copa América). ¡NO uses conocimiento histórico de mundiales pasados!\n"
+    "4. PROHIBIDO dejar campos como arqueros o goleadores en 'No disponible'. Deduce lógicamente con la plantilla actual de ese país.\n"
+    "5. EJEMPLO CRÍTICO: En Colombia, Radamel Falcao está retirado de la selección y David Ospina es suplente/inactivo. El arquero titular actual es Camilo Vargas, y figuras como Luis Díaz o James Rodríguez están activos. Aplica este nivel de actualidad para TODOS los equipos.\n"
+    "6. En 'verificacion_plantilla', lista los jugadores que encontraste en la web y en la 'nota' aclara que el resto fueron deducidos por la plantilla actual 2024.\n"
     "=== ESQUEMA JSON DE RESPUESTA ===\n"
     "El JSON debe tener la siguiente estructura estricta:\n"
     "{\n"
@@ -183,26 +184,34 @@ def get_client_ip(request):
     return request.META.get('REMOTE_ADDR', '0.0.0.0')
 
 
+import re
+
 def perform_web_search(query: str) -> str:
-    """Obtiene titulares y resúmenes reales usando Google News RSS (Evita el bloqueo 403 de Render)."""
+    """Busca en DuckDuckGo HTML puro para evitar rate limits y obtener resúmenes largos (snippets)."""
     try:
-        q = urllib.parse.quote(f"{query} mundial 2026")
-        url = f'https://news.google.com/rss/search?q={q}&hl=es-419&gl=CO&ceid=CO:es-419'
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        html = urllib.request.urlopen(req, timeout=5).read()
-        root = ET.fromstring(html)
+        q = urllib.parse.quote(f"{query} fecha estadio mundial 2026")
+        url = f"https://html.duckduckgo.com/html/?q={q}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'es-ES,es;q=0.5'
+        }
+        req = urllib.request.Request(url, headers=headers)
+        html = urllib.request.urlopen(req, timeout=8).read().decode('utf-8')
         
-        context = "=== CONTEXTO WEB RECIENTE (NOTICIAS EN VIVO) ===\n"
-        for item in root.findall('.//item')[:6]:
-            title = item.find('title').text if item.find('title') is not None else ''
-            desc = item.find('description').text if item.find('description') is not None else ''
-            # Limpiamos tags HTML basicos del description si los hay
-            desc_clean = desc.replace('<b>', '').replace('</b>', '').replace('</a>', '').split('<a href')[0]
-            context += f"- Titular: {title}\n"
+        # Extraer los snippets usando Regex básico para no requerir BeautifulSoup
+        snippets = re.findall(r'<a class="result__snippet[^>]*>(.*?)</a>', html, re.IGNORECASE | re.DOTALL)
+        
+        context = "=== CONTEXTO WEB RECIENTE (RESULTADOS DE BÚSQUEDA) ===\n"
+        for s in snippets[:6]:
+            # Limpiar tags HTML básicos
+            clean_s = re.sub(r'<[^>]+>', '', s).strip()
+            context += f"- {clean_s}\n"
+            
         return context
     except Exception as e:
-        print(f"Error en google news rss: {e}")
-        return "=== CONTEXTO WEB RECIENTE ===\nNo se pudo obtener información web (Bloqueo o timeout)."
+        print(f"Error en DDG HTML: {e}")
+        return "=== CONTEXTO WEB RECIENTE ===\nNo se pudo obtener información web detallada."
 
 
 class HealthCheckView(APIView):
