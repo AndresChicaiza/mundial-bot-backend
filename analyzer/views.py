@@ -173,7 +173,20 @@ SYSTEM_PROMPT = (
 
 
 _request_log = defaultdict(list)
+_query_cache = {}
+CACHE_TTL = 30 * 60  # 30 minutos de caché por partido
 
+def get_cached_response(query):
+    q = query.lower().strip()
+    if q in _query_cache:
+        data, timestamp = _query_cache[q]
+        if time.time() - timestamp < CACHE_TTL:
+            return data
+    return None
+
+def set_cached_response(query, data):
+    q = query.lower().strip()
+    _query_cache[q] = (data, time.time())
 
 def is_rate_limited(ip: str) -> bool:
     now = time.time()
@@ -212,9 +225,15 @@ def perform_web_search(query: str) -> str:
             max_results=4,
             search_depth="advanced"
         )
+        # Búsqueda 3: últimos resultados de los equipos
+        r3 = client.search(
+            f"{query} últimos partidos resultados",
+            max_results=3,
+            search_depth="advanced"
+        )
         context = "=== CONTEXTO WEB EN TIEMPO REAL (TAVILY) ===\n"
-        for result in r1['results'] + r2['results']:
-            context += f"Fuente: {result['title']}\n{result['content'][:400]}\n---\n"
+        for result in r1['results'] + r2['results'] + r3['results']:
+            context += f"Fuente: {result['title']}\n{result['content'][:500]}\n---\n"
         return context
     except Exception as e:
         print(f"Error en Tavily: {e}")
@@ -250,6 +269,11 @@ class AnalyzeMatchView(APIView):
                 {'error': 'La consulta es demasiado larga.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        # Retornar desde la caché si se consultó hace menos de 30 minutos
+        cached_data = get_cached_response(query)
+        if cached_data:
+            return Response({'data': cached_data}, status=status.HTTP_200_OK)
 
         api_key = settings.GROQ_API_KEY
         if not api_key:
@@ -299,6 +323,10 @@ class AnalyzeMatchView(APIView):
                 )
 
             analysis = json.loads(clean[start:end])
+            
+            # Guardar en la caché
+            set_cached_response(query, analysis)
+            
             return Response({'data': analysis}, status=status.HTTP_200_OK)
 
         except json.JSONDecodeError:
